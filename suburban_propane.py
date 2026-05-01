@@ -752,7 +752,7 @@ def get_file_data(input_filename, connection, datafile_id):
     return file_data_string
 
 
-def create_pdfs(input_filename, datafile_id):
+def create_pdfs(input_filename, datafile_id,connection):
     # if "SAESTA" in input_filename or "SAEDUN" in input_filename or "LETTERS" in input_filename or "denied_credit" in input_filename:
     #     if "LETTERS" in input_filename:
     #         workflow_filename = r"\\10.180.10.87\Suburban\Quadient\LETTERS\Suburban_LTR_COLL_15b.wfd"
@@ -788,18 +788,41 @@ def create_pdfs(input_filename, datafile_id):
             workflow_filename = SAESTA_WFD
         run_InspirePSCLI(workflow_filename, "PDF_WEB", PDF_FOLDER, datafile_id, "-splitbygroup", "10.2.0.194", "30354", r"C:\Program Files\Quadient\Inspire Designer R15\InspirePSCLI.exe", r"\\10.180.10.87\Suburban\Quadient\LOG")
     if "SAEINV" in input_filename or "SAEREN" in input_filename:
-        if "SAEINV" in input_filename:
-            workflow_filename = SAEINV_SPL_WFD
-        elif "SAEREN" in input_filename:
-            workflow_filename = SAEREN_SPL_WFD
-        run_InspirePSCLI(workflow_filename, "PDF_WEB", PDF_FOLDER, datafile_id, "-splitbygroup", "10.2.0.194", "30354", r"C:\Program Files\Quadient\Inspire Designer R15\InspirePSCLI.exe", r"\\10.180.10.87\Suburban\Quadient\LOG")
-        if "SAEINV" in input_filename:
-            workflow_filename = SAEINV_WFD
-        elif "SAEREN" in input_filename:
-            workflow_filename = SAEREN_WFD
-        run_InspirePSCLI(workflow_filename, "PDF_WEB", PDF_FOLDER, datafile_id, "-splitbygroup", "10.2.0.194", "30354", r"C:\Program Files\Quadient\Inspire Designer R15\InspirePSCLI.exe", r"\\10.180.10.87\Suburban\Quadient\LOG")
-   
-
+        
+        with connection.cursor() as cursor:
+            cursor.execute(
+                  f""" 
+                  SELECT special_handling FROM datafile fl 
+                    ,branch br
+                    ,document doc
+                    where
+                    fl.datafileid  = br.datafileid
+                    and doc.branchid = br.branchid
+                    and fl.datafileid = '{datafile_id}'
+                    and doc.special_handling='Y'
+                    limit 1
+                    """
+            )
+            record = cursor.fetchone()
+            if record:
+                special_handling = getattr(record, "special_ha∏ndling")
+            else:
+                special_handling = None
+                
+        if special_handling is not None and special_handling == "Y":
+            if "SAEINV" in input_filename:
+                workflow_filename = SAEINV_SPL_WFD
+                run_InspirePSCLI(workflow_filename, "PDF_WEB", PDF_FOLDER, datafile_id, "-splitbygroup", "10.2.0.194", "30354", r"C:\Program Files\Quadient\Inspire Designer R15\InspirePSCLI.exe", r"\\10.180.10.87\Suburban\Quadient\LOG")
+            elif "SAEREN" in input_filename:
+                workflow_filename = SAEREN_SPL_WFD
+                run_InspirePSCLI(workflow_filename, "PDF_WEB", PDF_FOLDER, datafile_id, "-splitbygroup", "10.2.0.194", "30354", r"C:\Program Files\Quadient\Inspire Designer R15\InspirePSCLI.exe", r"\\10.180.10.87\Suburban\Quadient\LOG")
+        else:         
+            if "SAEINV" in input_filename:
+                workflow_filename = SAEINV_WFD
+            elif "SAEREN" in input_filename:
+                workflow_filename = SAEREN_WFD
+            run_InspirePSCLI(workflow_filename, "PDF_WEB", PDF_FOLDER, datafile_id, "-splitbygroup", "10.2.0.194", "30354", r"C:\Program Files\Quadient\Inspire Designer R15\InspirePSCLI.exe", r"\\10.180.10.87\Suburban\Quadient\LOG")
+    
 def main():
     connection = pyodbc.connect(CONNECT_STRING)
     input_filenames = get_input_filenames(connection)
@@ -921,7 +944,7 @@ def main():
                 display_message("    Creating PDFs.")
                 for attempt in range(5):
                     try:
-                        create_pdfs(input_filename, datafile_id)
+                        create_pdfs(input_filename, datafile_id,connection)
                         break
                     except Exception as E:
                         display_message("        DDA Failure")
